@@ -1,0 +1,83 @@
+[
+  {
+    "id": "eval-001",
+    "query": "What is Retrieval Augmented Generation?",
+    "ground_truth": "RAG combines retrieval of relevant documents with language model generation to produce grounded answers.",
+    "category": "factual",
+    "expected_route": "no_retrieval",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-002",
+    "query": "What are the main components of a RAG pipeline?",
+    "ground_truth": "A RAG pipeline consists of a document retriever, an embedding model, a vector store, and a language model generator.",
+    "category": "factual",
+    "expected_route": "static_kb",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-003",
+    "query": "Who is the current CEO of OpenAI?",
+    "ground_truth": "Sam Altman is the CEO of OpenAI.",
+    "category": "current_info",
+    "expected_route": "web_only",
+    "freshness_required": true
+  },
+  {
+    "id": "eval-004",
+    "query": "Compare LangChain and LlamaIndex for building RAG systems.",
+    "ground_truth": "LangChain provides broad LLM orchestration capabilities while LlamaIndex specializes in data indexing and retrieval.",
+    "category": "comparison",
+    "expected_route": "multi_hop",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-005",
+    "query": "Continue my previous RAG project.",
+    "ground_truth": null,
+    "category": "memory_reference",
+    "expected_intent": "CONTINUE_PROJECT",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-006",
+    "query": "What embedding model did we use in our last session?",
+    "ground_truth": null,
+    "category": "memory_reference",
+    "expected_intent": "RECALL_INFORMATION",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-007",
+    "query": "What is the latest stable release of Python?",
+    "ground_truth": "Python 3.12 is a recent stable release.",
+    "category": "current_info",
+    "expected_route": "web_only",
+    "freshness_required": true
+  },
+  {
+    "id": "eval-008",
+    "query": "Improve the backend architecture we designed earlier.",
+    "ground_truth": null,
+    "category": "memory_reference",
+    "expected_intent": "MODIFY_PREVIOUS_WORK",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-009",
+    "query": "Use the same configuration we decided on before.",
+    "ground_truth": null,
+    "category": "memory_reference",
+    "expected_intent": "REUSE_PREVIOUS_CONFIGURATION",
+    "freshness_required": false
+  },
+  {
+    "id": "eval-010",
+    "query": "Compare our previous approach with the new one.",
+    "ground_truth": null,
+    "category": "memory_reference",
+    "expected_intent": "COMPARE_PREVIOUS_DECISIONS",
+    "freshness_required": false
+  }
+]
+

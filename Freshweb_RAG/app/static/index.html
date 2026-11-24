@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshWeb-RAG Control Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .route-badge-no_retrieval { background-color: #e0e7ff; color: #3730a3; }
+    .route-badge-static_kb { background-color: #dbeafe; color: #1e40af; }
+    .route-badge-web_only, .route-badge-web_supplemented { background-color: #fef3c7; color: #92400e; }
+    .route-badge-hybrid { background-color: #dcfce7; color: #166534; }
+    .route-badge-multi_hop { background-color: #f3e8ff; color: #6b21a8; }
+    .route-badge-error { background-color: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- AUTHENTICATION GATE MODAL (Front Page Login & Sign Up) -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-md overflow-hidden transform transition-all">
+      <!-- Modal Header -->
+      <div class="p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-900 text-white text-center relative">
+        <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+          <i class="fa-solid fa-brain text-2xl"></i>
+        </div>
+        <h2 class="text-xl font-extrabold tracking-tight">FreshWeb-RAG</h2>
+        <p class="text-xs text-blue-200/80 mt-1 font-medium">Adaptive • Memory-Augmented • Web-Aware</p>
+        <div class="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <i class="fa-solid fa-database text-[10px]"></i> Powered by MongoDB & Vector Store
+        </div>
+      </div>
+
+      <!-- Mode Switch Tabs -->
+      <div class="flex border-b border-slate-200 bg-slate-50/70 p-1.5">
+        <button id="auth-tab-login" onclick="setAuthMode('login')" class="flex-1 py-2 rounded-xl text-xs font-bold transition text-blue-600 bg-white shadow-sm">
+          <i class="fa-solid fa-right-to-bracket mr-1.5"></i> Sign In
+        </button>
+        <button id="auth-tab-signup" onclick="setAuthMode('signup')" class="flex-1 py-2 rounded-xl text-xs font-medium transition text-slate-600 hover:text-slate-900">
+          <i class="fa-solid fa-user-plus mr-1.5"></i> Create Account
+        </button>
+      </div>
+
+      <!-- Error / Notification Banner -->
+      <div id="auth-alert" class="hidden mx-6 mt-4 p-3 rounded-xl text-xs border"></div>
+
+      <!-- Form -->
+      <form onsubmit="handleAuthSubmit(event)" class="p-6 space-y-4">
+        <!-- Email field (always for signup, optional for login if using username) -->
+        <div id="field-email-group" class="hidden space-y-1">
+          <label class="block text-xs font-semibold text-slate-600">Email Address</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-xs">
+              <i class="fa-regular fa-envelope"></i>
+            </span>
+            <input type="email" id="auth-email" placeholder="name@example.com" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+          </div>
+        </div>
+
+        <!-- Username or Identifier field -->
+        <div class="space-y-1">
+          <label id="auth-username-label" class="block text-xs font-semibold text-slate-600">Username or Email</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-xs">
+              <i class="fa-regular fa-user"></i>
+            </span>
+            <input type="text" id="auth-username" required placeholder="Enter username or email" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+          </div>
+        </div>
+
+        <!-- Password field -->
+        <div class="space-y-1">
+          <label class="block text-xs font-semibold text-slate-600">Password</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-xs">
+              <i class="fa-solid fa-lock"></i>
+            </span>
+            <input type="password" id="auth-password" required placeholder="••••••••" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+          </div>
+        </div>
+
+        <!-- Confirm Password (signup only) -->
+        <div id="field-confirm-group" class="hidden space-y-1">
+          <label class="block text-xs font-semibold text-slate-600">Confirm Password</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-xs">
+              <i class="fa-solid fa-shield-halved"></i>
+            </span>
+            <input type="password" id="auth-confirm" placeholder="••••••••" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <button type="submit" id="auth-submit-btn" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 active:scale-[0.99] transition flex items-center justify-center gap-2">
+          <span id="auth-submit-text">Sign In to FreshWeb-RAG</span>
+          <i class="fa-solid fa-arrow-right text-[11px]"></i>
+        </button>
+
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-200"></div>
+          <span class="flex-shrink mx-3 text-[10px] uppercase font-semibold text-slate-400">Or Instant Evaluation</span>
+          <div class="flex-grow border-t border-slate-200"></div>
+        </div>
+
+        <!-- Quick Demo Login Button -->
+        <button type="button" onclick="loginDemoUser()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-bolt text-amber-500"></i>
+          <span>1-Click Demo Access</span>
+        </button>
+      </form>
+
+      <div class="p-3 bg-slate-50 border-t border-slate-100 text-center text-[11px] text-slate-400">
+        All conversations, documents & memories are securely isolated per user.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- Top Navbar -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+          <i class="fa-solid fa-brain text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">FreshWeb-RAG</h1>
+          <p class="text-xs text-slate-400">Adaptive • Memory-Augmented • Web-Aware</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex space-x-1 sm:space-x-2">
+        <button onclick="switchTab('chat')" id="tab-btn-chat" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-blue-600 bg-blue-50 transition">
+          <i class="fa-regular fa-comments mr-2"></i>Adaptive Chat
+        </button>
+        <button onclick="switchTab('documents')" id="tab-btn-documents" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+          <i class="fa-regular fa-file-lines mr-2"></i>Knowledge Base
+        </button>
+        <button onclick="switchTab('memory')" id="tab-btn-memory" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-clock-rotate-left mr-2"></i>Memory & MAQR
+        </button>
+        <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-chart-line mr-2"></i>Analytics
+        </button>
+      </nav>
+
+      <!-- User Profile & Health -->
+      <div class="flex items-center space-x-3">
+        <!-- User Badge -->
+        <div id="user-profile-badge" class="hidden items-center gap-2 bg-slate-100/90 border border-slate-200/80 px-3 py-1.5 rounded-full text-xs text-slate-700">
+          <div class="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+            <span id="user-initial">U</span>
+          </div>
+          <span id="user-display-name" class="font-semibold text-slate-800">user</span>
+          <button onclick="logout()" title="Sign Out" class="ml-1 text-slate-400 hover:text-rose-600 transition">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </div>
+
+        <span id="health-badge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>API Online
+        </span>
+        <a href="/docs" target="_blank" class="text-xs px-2.5 py-1.5 rounded-md border border-slate-300 hover:bg-slate-100 text-slate-600 transition" title="Swagger Docs">
+          <i class="fa-solid fa-book-open mr-1"></i>Swagger
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- Main Content Container -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- TAB 1: ADAPTIVE CHAT -->
+    <div id="tab-chat" class="tab-content flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
+      <!-- Chat Conversation Area -->
+      <div class="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Session:</span>
+            <span id="session-id-label" class="text-xs font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">new-session</span>
+          </div>
+          <button onclick="resetConversation()" class="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 transition">
+            <i class="fa-solid fa-rotate-right"></i> Reset Thread
+          </button>
+        </div>
+
+        <!-- Messages scroll container -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-6">
+          <!-- Initial welcome -->
+          <div class="flex items-start space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs shrink-0 mt-0.5">
+              <i class="fa-solid fa-robot"></i>
+            </div>
+            <div class="bg-slate-100/80 rounded-2xl p-4 max-w-2xl text-sm leading-relaxed border border-slate-200/60">
+              <p class="font-semibold text-slate-900 mb-1">Welcome to FreshWeb-RAG</p>
+              <p class="text-slate-600 mb-2">I dynamically adapt to your question: using static documents, live web intelligence, or persistent long-term memory.</p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2">
+                <button onclick="fillPrompt('What is machine learning?')" class="text-left p-2 rounded-lg bg-white border border-slate-200 hover:border-blue-300 text-slate-700 transition">
+                  <span class="font-medium text-blue-600 block">Definition (No Retrieval)</span>
+                  "What is machine learning?"
+                </button>
+                <button onclick="fillPrompt('Who is the current CEO of OpenAI?')" class="text-left p-2 rounded-lg bg-white border border-slate-200 hover:border-blue-300 text-slate-700 transition">
+                  <span class="font-medium text-amber-600 block">Fresh Web Intelligence</span>
+                  "Who is the current CEO of OpenAI?"
+                </button>
+                <button onclick="fillPrompt('Continue my previous project.')" class="text-left p-2 rounded-lg bg-white border border-slate-200 hover:border-blue-300 text-slate-700 transition">
+                  <span class="font-medium text-purple-600 block">Memory-Aware Routing</span>
+                  "Continue my previous project."
+                </button>
+                <button onclick="fillPrompt('Compare RAG and Fine-Tuning tradeoffs.')" class="text-left p-2 rounded-lg bg-white border border-slate-200 hover:border-blue-300 text-slate-700 transition">
+                  <span class="font-medium text-emerald-600 block">Multi-Hop Analysis</span>
+                  "Compare RAG and Fine-Tuning"
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Input Form -->
+        <div class="p-4 border-t border-slate-200 bg-white">
+          <form onsubmit="handleChatSubmit(event)" class="space-y-3">
+            <div class="flex items-center gap-2">
+              <textarea id="chat-input" rows="2" placeholder="Ask a question, continue a project, or request fresh info..." class="w-full resize-none rounded-xl border border-slate-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"></textarea>
+              <button type="submit" id="chat-submit-btn" class="h-14 px-6 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-medium rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-500">
+              <div class="flex items-center space-x-4">
+                <label class="flex items-center space-x-1.5 cursor-pointer">
+                  <input type="checkbox" id="check-use-kb" checked class="rounded text-blue-600 focus:ring-blue-500">
+                  <span>Use Static KB</span>
+                </label>
+                <label class="flex items-center space-x-1.5 cursor-pointer">
+                  <input type="checkbox" id="check-force-web" class="rounded text-blue-600 focus:ring-blue-500">
+                  <span>Force Web Search</span>
+                </label>
+              </div>
+              <span class="text-slate-400">Shift + Enter for newline</span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right Inspection Sidebar -->
+      <div class="w-full lg:w-96 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col space-y-5 overflow-y-auto">
+        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-microscope text-indigo-500"></i> Execution Inspector
+        </h3>
+
+        <!-- Last Route Badge -->
+        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+          <div class="text-xs font-semibold text-slate-400 uppercase">Adaptive RAG Route</div>
+          <div id="inspector-route" class="text-base font-bold text-slate-700">—</div>
+          <div id="inspector-meta" class="text-xs text-slate-500 space-y-1">
+            <div>Complexity: <span id="meta-complexity" class="font-medium text-slate-700">—</span></div>
+            <div>Freshness Required: <span id="meta-freshness" class="font-medium text-slate-700">—</span></div>
+            <div>Latency: <span id="meta-latency" class="font-medium text-slate-700">—</span></div>
+            <div>Verification: <span id="meta-verification" class="font-medium text-slate-700 font-mono">—</span></div>
+          </div>
+        </div>
+
+        <!-- Retrieved Citations -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center text-xs font-semibold uppercase text-slate-400">
+            <span>Evidence Citations</span>
+            <span id="citation-count-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px]">0</span>
+          </div>
+          <div id="inspector-citations" class="space-y-2 text-xs">
+            <p class="text-slate-400 italic">No citations retrieved yet.</p>
+          </div>
+        </div>
+
+        <!-- Retrieved Memories -->
+        <div class="space-y-2">
+          <div class="text-xs font-semibold uppercase text-slate-400">Memory Triggered</div>
+          <div id="inspector-memories" class="space-y-2 text-xs">
+            <p class="text-slate-400 italic">No historical context triggered.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: KNOWLEDGE BASE -->
+    <div id="tab-documents" class="tab-content hidden space-y-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <h2 class="text-base font-bold text-slate-900 mb-1">Upload Documents to Knowledge Base</h2>
+        <p class="text-xs text-slate-500 mb-4">Supported formats: PDF, DOCX, TXT, Markdown. Documents will be chunked, embedded, and indexed for adaptive retrieval.</p>
+        <div class="flex items-center gap-3">
+          <input type="file" id="file-upload-input" accept=".pdf,.docx,.txt,.md" class="text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+          <button onclick="uploadSelectedDocument()" id="upload-doc-btn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-blue-500/20 transition flex items-center gap-2">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Upload & Index</span>
+          </button>
+        </div>
+        <div id="upload-status" class="mt-3 text-xs hidden"></div>
+      </div>
+
+      <!-- Indexed Documents Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+          <h3 class="text-sm font-bold text-slate-900">Indexed Documents</h3>
+          <button onclick="loadDocuments()" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-50 text-slate-400 uppercase font-semibold text-[10px] border-b border-slate-100">
+              <tr>
+                <th class="p-4">Filename</th>
+                <th class="p-4">Content Type</th>
+                <th class="p-4">Chunks</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Uploaded</th>
+                <th class="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="documents-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="6" class="p-6 text-center text-slate-400">Loading documents...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: MEMORY & MAQR -->
+    <div id="tab-memory" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- MAQR Inspector -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Memory-Aware Query Router (MAQR)</h2>
+            <p class="text-xs text-slate-500 mt-1">Test intent classification and query enrichment on references like "Continue my previous project".</p>
+          </div>
+          <div class="space-y-2">
+            <input type="text" id="maqr-input" value="Continue my previous project on embedding models" class="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            <div class="flex gap-2">
+              <button onclick="inspectMAQR()" class="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold transition">
+                Analyze Reference Intent
+              </button>
+              <button onclick="enrichMAQR()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition">
+                Enrich Query
+              </button>
+            </div>
+          </div>
+          <div id="maqr-results" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 min-h-[140px] whitespace-pre-wrap overflow-x-auto">
+            Click "Analyze Reference Intent" to inspect router classification.
+          </div>
+        </div>
+
+        <!-- Long-Term Memories List -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div class="flex justify-between items-center">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">User Long-Term Memory</h2>
+              <p class="text-xs text-slate-500">Persistent facts, technical decisions, and configurations.</p>
+            </div>
+            <button onclick="loadMemories()" class="text-xs text-purple-600 hover:underline flex items-center gap-1">
+              <i class="fa-solid fa-rotate"></i> Refresh
+            </button>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="memory-search-input" placeholder="Search memory semantically..." class="flex-1 p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            <button onclick="searchMemories()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">Search</button>
+          </div>
+          <div id="memories-list" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+            <p class="text-slate-400 text-xs italic">Loading memories...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: ANALYTICS -->
+    <div id="tab-analytics" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold text-slate-400 uppercase">Total Queries</div>
+          <div id="stat-total-queries" class="text-2xl font-black text-slate-900 mt-1">0</div>
+        </div>
+        <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold text-slate-400 uppercase">Average Latency</div>
+          <div id="stat-avg-latency" class="text-2xl font-black text-blue-600 mt-1">0 ms</div>
+        </div>
+        <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold text-slate-400 uppercase">Cache Hit Rate</div>
+          <div id="stat-cache-rate" class="text-2xl font-black text-emerald-600 mt-1">0%</div>
+        </div>
+        <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold text-slate-400 uppercase">Estimated LLM Cost</div>
+          <div id="stat-total-cost" class="text-2xl font-black text-purple-600 mt-1">$0.0000</div>
+        </div>
+      </div>
+
+      <!-- Execution Log -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+          <h3 class="text-sm font-bold text-slate-900">Recent Query Executions</h3>
+          <button onclick="loadAnalytics()" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-50 text-slate-400 uppercase font-semibold text-[10px] border-b border-slate-100">
+              <tr>
+                <th class="p-3">Route</th>
+                <th class="p-3">Complexity</th>
+                <th class="p-3">Faithfulness</th>
+                <th class="p-3">Latency</th>
+                <th class="p-3">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="5" class="p-6 text-center text-slate-400">No query logs recorded yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <!-- JAVASCRIPT APP LOGIC -->
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <script>
+    let currentConversationId = null;
+    let authMode = 'login'; // 'login' or 'signup'
+
+    // ── Authentication Management ─────────────────────────────────────
+    function getToken() {
+      return localStorage.getItem('freshweb_token');
+    }
+
+    function getUser() {
+      const u = localStorage.getItem('freshweb_user');
+      return u ? JSON.parse(u) : null;
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      const loginTab = document.getElementById('auth-tab-login');
+      const signupTab = document.getElementById('auth-tab-signup');
+      const emailGroup = document.getElementById('field-email-group');
+      const confirmGroup = document.getElementById('field-confirm-group');
+      const submitText = document.getElementById('auth-submit-text');
+      const usernameLabel = document.getElementById('auth-username-label');
+      const alertBox = document.getElementById('auth-alert');
+      alertBox.classList.add('hidden');
+
+      if (mode === 'login') {
+        loginTab.className = "flex-1 py-2 rounded-xl text-xs font-bold transition text-blue-600 bg-white shadow-sm";
+        signupTab.className = "flex-1 py-2 rounded-xl text-xs font-medium transition text-slate-600 hover:text-slate-900";
+        emailGroup.classList.add('hidden');
+        confirmGroup.classList.add('hidden');
+        usernameLabel.innerText = 'Username or Email';
+        submitText.innerText = 'Sign In to FreshWeb-RAG';
+      } else {
+        signupTab.className = "flex-1 py-2 rounded-xl text-xs font-bold transition text-blue-600 bg-white shadow-sm";
+        loginTab.className = "flex-1 py-2 rounded-xl text-xs font-medium transition text-slate-600 hover:text-slate-900";
+        emailGroup.classList.remove('hidden');
+        confirmGroup.classList.remove('hidden');
+        usernameLabel.innerText = 'Choose a Username';
+        submitText.innerText = 'Create Account & Start';
+      }
+    }
+
+    function showAuthAlert(msg, isError = true) {
+      const alertBox = document.getElementById('auth-alert');
+      alertBox.className = isError
+        ? "mx-6 mt-4 p-3 rounded-xl text-xs border bg-rose-50 border-rose-200 text-rose-700"
+        : "mx-6 mt-4 p-3 rounded-xl text-xs border bg-emerald-50 border-emerald-200 text-emerald-700";
+      alertBox.innerText = msg;
+      alertBox.classList.remove('hidden');
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const alertBox = document.getElementById('auth-alert');
+      alertBox.classList.add('hidden');
+
+      const submitBtn = document.getElementById('auth-submit-btn');
+      submitBtn.disabled = true;
+
+      try {
+        if (authMode === 'login') {
+          const username = document.getElementById('auth-username').value.trim();
+          const password = document.getElementById('auth-password').value;
+          const res = await fetch('/api/v1/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.detail || 'Login failed. Check your credentials.');
+          }
+          onAuthSuccess(data);
+        } else {
+          const email = document.getElementById('auth-email').value.trim();
+          const username = document.getElementById('auth-username').value.trim();
+          const password = document.getElementById('auth-password').value;
+          const confirm = document.getElementById('auth-confirm').value;
+
+          if (password !== confirm) {
+            throw new Error('Passwords do not match.');
+          }
+          if (password.length < 6) {
+            throw new Error('Password must be at least 6 characters long.');
+          }
+
+          const res = await fetch('/api/v1/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, username, password })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.detail || 'Account registration failed.');
+          }
+          onAuthSuccess(data);
+        }
+      } catch (err) {
+        showAuthAlert(err.message, true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    async function loginDemoUser() {
+      try {
+        // Try to log in with standard demo credentials
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'demouser', password: 'password123' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          onAuthSuccess(data);
+          return;
+        }
+
+        // If demo user does not exist yet, sign up demo user
+        const signupRes = await fetch('/api/v1/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: 'demo@freshweb.ai',
+            username: 'demouser',
+            password: 'password123'
+          })
+        });
+        if (signupRes.ok) {
+          const data = await signupRes.json();
+          onAuthSuccess(data);
+          return;
+        }
+
+        // Fallback to dev demo token
+        onAuthSuccess({
+          access_token: 'demo-token',
+          user: { id: '00000000-0000-0000-0000-000000000001', username: 'demouser', email: 'demo@freshweb.ai' }
+        });
+      } catch (e) {
+        // Fallback to demo token in dev
+        onAuthSuccess({
+          access_token: 'demo-token',
+          user: { id: '00000000-0000-0000-0000-000000000001', username: 'demouser', email: 'demo@freshweb.ai' }
+        });
+      }
+    }
+
+    function onAuthSuccess(authData) {
+      localStorage.setItem('freshweb_token', authData.access_token);
+      localStorage.setItem('freshweb_user', JSON.stringify(authData.user));
+
+      updateUserUI(authData.user);
+      document.getElementById('auth-modal').classList.add('hidden');
+
+      // Initialize tabs
+      loadDocuments();
+      loadMemories();
+      loadAnalytics();
+    }
+
+    function logout() {
+      localStorage.removeItem('freshweb_token');
+      localStorage.removeItem('freshweb_user');
+      document.getElementById('user-profile-badge').classList.add('hidden');
+      document.getElementById('auth-modal').classList.remove('hidden');
+      setAuthMode('login');
+      resetConversation();
+    }
+
+    function updateUserUI(user) {
+      if (!user) return;
+      const badge = document.getElementById('user-profile-badge');
+      const nameEl = document.getElementById('user-display-name');
+      const initEl = document.getElementById('user-initial');
+      nameEl.innerText = user.username || 'user';
+      initEl.innerText = (user.username || 'U')[0].toUpperCase();
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    }
+
+    // ── Authenticated Fetch Helper ────────────────────────────────────
+    async function authFetch(url, options = {}) {
+      const token = getToken();
+      const headers = options.headers || {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      options.headers = headers;
+
+      const res = await fetch(url, options);
+      if (res.status === 401) {
+        logout();
+        showAuthAlert('Session expired or authentication required. Please sign in.', true);
+        throw new Error('Authentication required.');
+      }
+      return res;
+    }
+
+    // ── App Startup Verification ──────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', async () => {
+      const token = getToken();
+      const user = getUser();
+
+      if (token && user) {
+        updateUserUI(user);
+        document.getElementById('auth-modal').classList.add('hidden');
+        loadDocuments();
+        loadMemories();
+        loadAnalytics();
+      } else {
+        // Enforce Login Gate on first load
+        document.getElementById('auth-modal').classList.remove('hidden');
+      }
+    });
+
+    // ── Tab Navigation ────────────────────────────────────────────────
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.className = 'tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition';
+      });
+
+      const activeContent = document.getElementById(`tab-${tabId}`);
+      if (activeContent) activeContent.classList.remove('hidden');
+
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      if (activeBtn) {
+        activeBtn.className = 'tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-blue-600 bg-blue-50 transition';
+      }
+
+      if (tabId === 'documents') loadDocuments();
+      if (tabId === 'memory') loadMemories();
+      if (tabId === 'analytics') loadAnalytics();
+    }
+
+    function fillPrompt(text) {
+      document.getElementById('chat-input').value = text;
+      document.getElementById('chat-input').focus();
+    }
+
+    function resetConversation() {
+      currentConversationId = null;
+      document.getElementById('session-id-label').innerText = 'new-session';
+      document.getElementById('messages-container').innerHTML = `
+        <div class="flex items-start space-x-3">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs shrink-0 mt-0.5">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div class="bg-slate-100/80 rounded-2xl p-4 max-w-2xl text-sm leading-relaxed border border-slate-200/60">
+            <p class="font-semibold text-slate-900 mb-1">Thread reset.</p>
+            <p class="text-slate-600">Fresh context initialized. You can now ask a new question or start a new task.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Chat Workflow ─────────────────────────────────────────────────
+    async function handleChatSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const query = input.value.trim();
+      if (!query) return;
+
+      const submitBtn = document.getElementById('chat-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+      appendMessage('user', query);
+      input.value = '';
+
+      try {
+        const payload = {
+          query: query,
+          conversation_id: currentConversationId,
+          use_knowledge_base: document.getElementById('check-use-kb').checked,
+          force_web_search: document.getElementById('check-force-web').checked,
+          stream: false
+        };
+
+        const res = await authFetch('/api/v1/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Chat request failed.');
+        }
+
+        currentConversationId = data.conversation_id;
+        document.getElementById('session-id-label').innerText = currentConversationId.slice(0, 8) + '...';
+
+        appendMessage('assistant', data.answer, data.citations, data.route, data.verification_status);
+        updateInspector(data);
+
+      } catch (err) {
+        appendMessage('assistant', `⚠️ ${err.message}`, [], 'error', 'failed');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+      }
+    }
+
+    function appendMessage(role, text, citations = [], route = '', verification = '') {
+      const container = document.getElementById('messages-container');
+      const wrapper = document.createElement('div');
+      wrapper.className = `flex items-start space-x-3 ${role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = `w-8 h-8 rounded-lg flex items-center justify-center text-xs shrink-0 mt-0.5 ${role === 'user' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white'}`;
+      avatar.innerHTML = role === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
+
+      const bubble = document.createElement('div');
+      bubble.className = `rounded-2xl p-4 max-w-2xl text-sm leading-relaxed border ${role === 'user' ? 'bg-blue-600 text-white border-blue-600 rounded-tr-none' : 'bg-white border-slate-200 rounded-tl-none shadow-sm'}`;
+
+      let contentHtml = `<p class="whitespace-pre-wrap">${escapeHtml(text)}</p>`;
+
+      if (role === 'assistant' && route) {
+        contentHtml = `
+          <div class="flex items-center gap-2 mb-2 text-xs">
+            <span class="px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider text-[10px] route-badge-${route}">${route.replace('_', ' ')}</span>
+            <span class="text-slate-400 font-mono text-[10px]">${verification}</span>
+          </div>
+        ` + contentHtml;
+      }
+
+      bubble.innerHTML = contentHtml;
+      wrapper.appendChild(avatar);
+      wrapper.appendChild(bubble);
+      container.appendChild(wrapper);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function updateInspector(data) {
+      const routeEl = document.getElementById('inspector-route');
+      routeEl.innerHTML = `<span class="px-3 py-1 rounded-full text-xs font-semibold route-badge-${data.route}">${data.route}</span>`;
+
+      const meta = data.retrieval_metadata || {};
+      document.getElementById('meta-complexity').innerText = meta.complexity || '—';
+      document.getElementById('meta-freshness').innerText = meta.freshness_required ? 'Yes' : 'No';
+      document.getElementById('meta-latency').innerText = `${Math.round(data.execution_time_ms)} ms`;
+      document.getElementById('meta-verification').innerText = data.verification_status;
+
+      // Citations
+      const citCount = document.getElementById('citation-count-badge');
+      const citContainer = document.getElementById('inspector-citations');
+      citCount.innerText = data.citations ? data.citations.length : 0;
+
+      if (data.citations && data.citations.length > 0) {
+        citContainer.innerHTML = data.citations.map(c => `
+          <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/60 space-y-1">
+            <div class="flex justify-between items-center font-semibold text-slate-800">
+              <span class="text-blue-600 font-mono">${c.citation_id}</span>
+              <span class="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">${c.source_type}</span>
+            </div>
+            <div class="truncate text-slate-700">${c.url ? `<a href="${c.url}" target="_blank" class="hover:underline text-blue-600">${escapeHtml(c.title || c.url)}</a>` : escapeHtml(c.title || 'Internal Document')}</div>
+            <div class="flex gap-2 text-[10px] text-slate-500">
+              <span>Freshness: ${c.freshness_score !== null ? (c.freshness_score * 100).toFixed(0) + '%' : 'N/A'}</span>
+              <span>Reliability: ${c.reliability_score !== null ? (c.reliability_score * 100).toFixed(0) + '%' : 'N/A'}</span>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        citContainer.innerHTML = '<p class="text-slate-400 italic">No citations retrieved.</p>';
+      }
+
+      // Memories
+      const memContainer = document.getElementById('inspector-memories');
+      if (data.memories_used && data.memories_used.length > 0) {
+        memContainer.innerHTML = data.memories_used.map(m => `
+          <div class="p-2.5 rounded-lg border border-purple-200 bg-purple-50/40 text-slate-700">
+            <div class="font-semibold text-purple-700 text-[10px] uppercase">${m.memory_type}</div>
+            <p class="mt-0.5 text-xs">${escapeHtml(m.content)}</p>
+          </div>
+        `).join('');
+      } else {
+        memContainer.innerHTML = '<p class="text-slate-400 italic">No historical memories triggered.</p>';
+      }
+    }
+
+    // ── Knowledge Base ────────────────────────────────────────────────
+    async function loadDocuments() {
+      const tbody = document.getElementById('documents-table-body');
+      try {
+        const res = await authFetch('/api/v1/documents');
+        const data = await res.json();
+        if (data.documents && data.documents.length > 0) {
+          tbody.innerHTML = data.documents.map(d => `
+            <tr class="hover:bg-slate-50/50">
+              <td class="p-4 font-medium text-slate-800">${escapeHtml(d.filename)}</td>
+              <td class="p-4 text-xs font-mono text-slate-500">${escapeHtml(d.content_type || '—')}</td>
+              <td class="p-4">${d.chunk_count}</td>
+              <td class="p-4"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${d.status === 'indexed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${d.status}</span></td>
+              <td class="p-4 text-xs text-slate-400">${new Date(d.uploaded_at).toLocaleDateString()}</td>
+              <td class="p-4 text-right">
+                <button onclick="deleteDocument('${d.id}')" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 rounded hover:bg-red-50 transition">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">No documents indexed yet. Upload one above!</td></tr>';
+        }
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-amber-600">Failed to load documents: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function uploadSelectedDocument() {
+      const fileInput = document.getElementById('file-upload-input');
+      const statusEl = document.getElementById('upload-status');
+      const btn = document.getElementById('upload-doc-btn');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select a file to upload (PDF, DOCX, TXT, or MD).');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+      statusEl.classList.remove('hidden', 'text-emerald-600', 'text-rose-600');
+      statusEl.classList.add('text-blue-600');
+      statusEl.innerText = `Uploading and parsing ${file.name}...`;
+
+      try {
+        const res = await authFetch('/api/v1/documents/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Upload failed.');
+
+        statusEl.className = 'mt-3 text-xs text-emerald-600 font-semibold';
+        statusEl.innerText = `✅ "${file.name}" uploaded successfully! Chunking and indexing in background...`;
+        fileInput.value = '';
+        setTimeout(() => loadDocuments(), 1500);
+      } catch (err) {
+        statusEl.className = 'mt-3 text-xs text-rose-600 font-semibold';
+        statusEl.innerText = `❌ Error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Upload & Index';
+      }
+    }
+
+    async function deleteDocument(docId) {
+      if (!confirm('Are you sure you want to delete this document from the Knowledge Base?')) return;
+      try {
+        const res = await authFetch(`/api/v1/documents/${docId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete document.');
+        loadDocuments();
+      } catch (e) {
+        alert(`Error: ${e.message}`);
+      }
+    }
+
+    // ── Memory & MAQR ─────────────────────────────────────────────────
+    async function loadMemories() {
+      const container = document.getElementById('memories-list');
+      try {
+        const res = await authFetch('/api/v1/memory');
+        const data = await res.json();
+        if (data.memories && data.memories.length > 0) {
+          container.innerHTML = data.memories.map(m => `
+            <div class="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition space-y-1.5">
+              <div class="flex justify-between items-center text-xs">
+                <span class="px-2 py-0.5 rounded font-semibold text-[10px] uppercase bg-slate-100 text-slate-700">${m.memory_type}</span>
+                <span class="text-slate-400 text-[10px]">Importance: ${(m.importance_score * 100).toFixed(0)}%</span>
+              </div>
+              <p class="text-xs text-slate-700">${escapeHtml(m.content)}</p>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '<p class="text-slate-400 text-xs italic">No long-term memories stored yet.</p>';
+        }
+      } catch (e) {
+        container.innerHTML = `<p class="text-amber-600 text-xs">Failed to load memories: ${e.message}</p>`;
+      }
+    }
+
+    async function searchMemories() {
+      const query = document.getElementById('memory-search-input').value.trim();
+      if (!query) return loadMemories();
+      const container = document.getElementById('memories-list');
+      try {
+        const res = await authFetch('/api/v1/memory/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query, top_k: 5 })
+        });
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+          container.innerHTML = data.results.map(m => `
+            <div class="p-3.5 rounded-xl border border-blue-200 bg-blue-50/30 space-y-1">
+              <div class="flex justify-between items-center text-xs">
+                <span class="font-semibold text-blue-700 uppercase text-[10px]">${m.memory_type}</span>
+                <span class="text-slate-400 text-[10px]">Confidence: ${(m.confidence_score * 100).toFixed(0)}%</span>
+              </div>
+              <p class="text-xs text-slate-700">${escapeHtml(m.content)}</p>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '<p class="text-slate-400 text-xs italic">No matching memories found.</p>';
+        }
+      } catch (e) {
+        container.innerHTML = `<p class="text-amber-600 text-xs">Search error: ${e.message}</p>`;
+      }
+    }
+
+    async function inspectMAQR() {
+      const query = document.getElementById('maqr-input').value.trim();
+      if (!query) return;
+      const resEl = document.getElementById('maqr-results');
+      resEl.innerText = 'Analyzing historical intent...';
+      try {
+        const res = await authFetch('/api/v1/memory-aware/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+        const data = await res.json();
+        resEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      } catch (e) {
+        resEl.innerText = `Error: ${e.message}`;
+      }
+    }
+
+    async function enrichMAQR() {
+      const query = document.getElementById('maqr-input').value.trim();
+      if (!query) return;
+      const resEl = document.getElementById('maqr-results');
+      resEl.innerText = 'Enriching query with historical context...';
+      try {
+        const res = await authFetch('/api/v1/memory-aware/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+        const data = await res.json();
+        resEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      } catch (e) {
+        resEl.innerText = `Error: ${e.message}`;
+      }
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────────
+    async function loadAnalytics() {
+      try {
+        const res = await authFetch('/api/v1/analytics');
+        const data = await res.json();
+        document.getElementById('stat-total-queries').innerText = data.total_queries || 0;
+        document.getElementById('stat-avg-latency').innerText = `${data.avg_execution_time_ms || 0} ms`;
+        document.getElementById('stat-cache-rate').innerText = `${((data.cache_hit_rate || 0) * 100).toFixed(1)}%`;
+        document.getElementById('stat-total-cost').innerText = `$${(data.total_estimated_cost_usd || 0).toFixed(4)}`;
+
+        const tbody = document.getElementById('analytics-table-body');
+        if (data.recent_records && data.recent_records.length > 0) {
+          tbody.innerHTML = data.recent_records.map(r => `
+            <tr>
+              <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold route-badge-${r.route || 'no_retrieval'}">${r.route || '—'}</span></td>
+              <td class="p-3 text-xs">${r.complexity || '—'}</td>
+              <td class="p-3 text-xs font-mono">${r.verification || '—'}</td>
+              <td class="p-3 text-xs">${Math.round(r.execution_time_ms || 0)} ms</td>
+              <td class="p-3 text-xs text-slate-400">${new Date(r.created_at).toLocaleTimeString()}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        console.error('Analytics load failed', e);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
