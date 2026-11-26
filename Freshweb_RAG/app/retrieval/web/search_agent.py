@@ -189,8 +189,9 @@ Question: {original_query}
 Respond ONLY with a JSON array of query strings:
 ["query 1", "query 2", ...]"""
 
+        from app.utils.llm_client import get_content_text
         response = await llm.ainvoke(prompt)
-        text = response.content if hasattr(response, "content") else str(response)
+        text = get_content_text(response)
         match = re.search(r"\[.*\]", text, re.DOTALL)
         if match:
             queries = json.loads(match.group())

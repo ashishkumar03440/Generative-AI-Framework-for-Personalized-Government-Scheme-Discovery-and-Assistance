@@ -48,13 +48,23 @@ async def search_vectors(
         from qdrant_client.models import Filter
         qdrant_filter = Filter(must=conditions)
 
-    results = await client.search(
-        collection_name=collection,
-        query_vector=query_vector,
-        limit=top_k,
-        query_filter=qdrant_filter,
-        with_payload=True,
-    )
+    if hasattr(client, "query_points"):
+        res = await client.query_points(
+            collection_name=collection,
+            query=query_vector,
+            limit=top_k,
+            query_filter=qdrant_filter,
+            with_payload=True,
+        )
+        results = res.points if hasattr(res, "points") else res
+    else:
+        results = await client.search(
+            collection_name=collection,
+            query_vector=query_vector,
+            limit=top_k,
+            query_filter=qdrant_filter,
+            with_payload=True,
+        )
     return [
         {
             "id": str(r.id),

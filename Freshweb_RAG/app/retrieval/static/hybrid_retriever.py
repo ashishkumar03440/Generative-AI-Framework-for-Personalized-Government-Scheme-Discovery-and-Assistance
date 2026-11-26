@@ -18,17 +18,121 @@ async def hybrid_search(
 ) -> List[dict]:
     """
     Run hybrid retrieval combining dense vector search and BM25 sparse search.
+    Includes database chunk fallback if vector store is unavailable or empty.
 
     Returns a list of result dicts with keys: chunk_id, document_id, content, score, source, page_number.
     """
     _top_k = top_k or settings.top_k
+    results: List[dict] = []
 
-    if search_type == "dense":
-        return await _dense_search(query, user_id, _top_k)
-    elif search_type == "sparse":
-        return await _sparse_search(query, user_id, _top_k)
-    else:
-        return await _hybrid_rrf(query, user_id, _top_k)
+    try:
+        if search_type == "dense":
+            results = await _dense_search(query, user_id, _top_k)
+        elif search_type == "sparse":
+            results = await _sparse_search(query, user_id, _top_k)
+        else:
+            results = await _hybrid_rrf(query, user_id, _top_k)
+    except Exception as exc:
+        logger.warning("Vector search failed or offline (%s). Using database fallback.", exc)
+        results = []
+
+    # If vector search returned no results, fall back to direct database chunk search
+    if not results:
+        results = await _database_fallback_search(query, user_id, _top_k)
+
+    return results
+
+
+async def _database_fallback_search(query: str, user_id: str, top_k: int) -> List[dict]:
+    """Search chunks directly from database (MongoDB and SQLite) using keyword and meta matching."""
+    import re
+
+    candidates: List[dict] = []
+
+    # 1. Try MongoDB
+    try:
+        from app.database.mongodb import mongodb_manager
+        if mongodb_manager.is_connected and mongodb_manager.db is not None:
+            m_chunks = await mongodb_manager.db.document_chunks.find({"user_id": user_id}).to_list(length=100)
+            for c in m_chunks:
+                candidates.append({
+                    "chunk_id": str(c.get("id") or c.get("_id", "")),
+                    "document_id": str(c.get("document_id", "")),
+                    "content": c.get("content", ""),
+                    "score": 0.5,
+                    "source": c.get("source", "MongoDB"),
+                    "page_number": c.get("page_number", 1),
+                })
+        else:
+            # Check MongoDB in-memory fallback
+            for c in mongodb_manager._fallback.document_chunks:
+                if c.get("user_id") == user_id:
+                    candidates.append({
+                        "chunk_id": str(c.get("id", "")),
+                        "document_id": str(c.get("document_id", "")),
+                        "content": c.get("content", ""),
+                        "score": 0.5,
+                        "source": c.get("source", "Document"),
+                        "page_number": c.get("page_number", 1),
+                    })
+    except Exception as m_err:
+        logger.debug("MongoDB chunk fallback lookup skipped: %s", m_err)
+
+    # 2. Try SQLite databases if no chunks found yet
+    if not candidates:
+        import os, sqlite3
+        db_paths = ["data/freshweb.db", "Freshweb_RAG/data/freshweb.db", "../data/freshweb.db"]
+        for path in db_paths:
+            if os.path.exists(path):
+                try:
+                    conn = sqlite3.connect(path)
+                    cur = conn.cursor()
+                    rows = cur.execute(
+                        "SELECT id, document_id, content, page_number, source FROM document_chunks WHERE user_id = ? LIMIT 100",
+                        (user_id,),
+                    ).fetchall()
+                    conn.close()
+                    for r in rows:
+                        candidates.append({
+                            "chunk_id": str(r[0]),
+                            "document_id": str(r[1]),
+                            "content": r[2],
+                            "score": 0.5,
+                            "source": r[4] or "Document",
+                            "page_number": r[3] or 1,
+                        })
+                    if candidates:
+                        break
+                except Exception as sq_err:
+                    logger.debug("SQLite chunk fallback error for %s: %s", path, sq_err)
+
+    if not candidates:
+        return []
+
+    # Score candidates using token overlap or return top if meta query
+    q_tokens = set(re.findall(r"\w+", query.lower()))
+    stop_words = {"what", "is", "there", "any", "in", "my", "the", "do", "i", "have", "are", "a", "an", "of", "to"}
+    keywords = q_tokens - stop_words
+
+    # If it's a general meta-query (e.g. "what is in my documents", "is there any document"), return the initial chunks
+    if not keywords or any(word in query.lower() for word in ["any document", "my document", "knowledge base", "knowledgebase", "uploaded", "my file", "all"]):
+        for i, c in enumerate(candidates[:top_k]):
+            c["score"] = 0.85 - (i * 0.05)
+        return candidates[:top_k]
+
+    # Keyword matching
+    scored = []
+    for c in candidates:
+        text = c["content"].lower()
+        match_count = sum(1 for kw in keywords if kw in text)
+        score = match_count / len(keywords) if keywords else 0.5
+        c_copy = dict(c)
+        c_copy["score"] = score
+        scored.append(c_copy)
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    best = [s for s in scored if s["score"] > 0]
+    return best[:top_k] if best else candidates[:top_k]
 
 
 async def _dense_search(query: str, user_id: str, top_k: int) -> List[dict]:

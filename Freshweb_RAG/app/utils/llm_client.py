@@ -20,9 +20,10 @@ def get_llm_client(provider: str | None = None, model: str | None = None):
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             return ChatGoogleGenerativeAI(
-                model=_model or "gemini-1.5-flash",
+                model=_model or "gemini-3.5-flash-lite",
                 google_api_key=settings.gemini_api_key,
                 temperature=0.0,
+                request_timeout=15.0,
             )
         except ImportError:
             logger.warning("langchain-google-genai not installed, falling back to OpenAI")
@@ -34,9 +35,28 @@ def get_llm_client(provider: str | None = None, model: str | None = None):
             model=_model or "gpt-4o-mini",
             api_key=settings.openai_api_key,
             temperature=0.0,
+            timeout=15.0,
         )
 
     raise ValueError(f"Unsupported LLM provider: {_provider}")
+
+
+def get_content_text(response: Any) -> str:
+    """Extract clean string text from LangChain LLM response across providers."""
+    content = getattr(response, "content", response)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(item["text"])
+            elif isinstance(item, str):
+                parts.append(item)
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    return str(content)
 
 
 class HashEmbeddings:

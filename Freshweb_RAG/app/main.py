@@ -19,33 +19,34 @@ async def lifespan(app: FastAPI):
     """Manage startup and shutdown lifecycle."""
     logger.info("Starting FreshWeb-RAG backend (env=%s)", settings.app_env)
 
-    # ── MongoDB ───────────────────────────────────────────────────────────────
-    try:
-        from app.database.mongodb import mongodb_manager
-        await mongodb_manager.connect()
-    except Exception as exc:
-        logger.warning("MongoDB init skipped: %s", exc)
+    # ── Database ──────────────────────────────────────────────────────────────
+    if settings.database_type == "mongodb":
+        logger.info("Primary Database: MongoDB (URI=%s, Database=%s)", settings.mongodb_uri, settings.mongodb_db_name)
+        try:
+            from app.database.mongodb import mongodb_manager
+            await mongodb_manager.connect()
+        except Exception as exc:
+            logger.warning("MongoDB connect error: %s", exc)
 
-    # ── Database tables (SQL fallback) ────────────────────────────────────────
+    # ── Relational Tables ─────────────────────────────────────────────────────
     try:
         from app.database import session as db_session
         from app.database.models import Base
         async with db_session.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables ready (%s)", db_session.engine.url)
+        logger.info("Relational tables ready (%s)", db_session.engine.url)
     except Exception as exc:
-        if settings.app_env == "development" and "postgresql" in settings.database_url:
+        if "postgresql" in str(settings.database_url):
             from pathlib import Path
-            logger.warning("PostgreSQL offline at %s. Switching to zero-config SQLite: data/freshweb.db", settings.database_url)
             fallback_path = Path("data/freshweb.db").resolve()
             fallback_path.parent.mkdir(parents=True, exist_ok=True)
             fallback_url = f"sqlite+aiosqlite:///{fallback_path}"
             db_session.engine, db_session.AsyncSessionLocal = db_session.create_engine_and_session(fallback_url)
             async with db_session.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("Local SQLite database tables ready at %s", fallback_path)
+            logger.info("Local storage tables ready at %s", fallback_path)
         else:
-            logger.warning("Database init skipped: %s", exc)
+            logger.debug("Database sync notice: %s", exc)
 
     # ── Qdrant collections ────────────────────────────────────────────────────
     try:

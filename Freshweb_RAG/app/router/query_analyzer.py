@@ -24,9 +24,15 @@ MULTI_HOP_SIGNALS = [
     r"\b(then|after that|following|first .+ then)\b",
 ]
 
+KB_META_SIGNALS = [
+    r"\b(what|which|any|list|show|check|tell)\b.*(document|documents|file|files|pdf|pdfs|data|doc|docs|knowledge base|knowledgebase|uploaded|my file|my files)\b",
+    r"\b(do i have|are there|is there|have i uploaded|what do you know about me|what is in my)\b",
+    r"\b(what is this document|summarize my document|summarize this file|about my resume|my resume|my cv)\b",
+]
+
 NO_RETRIEVAL_SIGNALS = [
     r"^(what is|what are|define|explain|describe) (the )?(concept of |idea of )?[\w\s]+\?*$",
-    r"\b(hello|hi|hey|thank you|thanks|goodbye|bye)\b",
+    r"^(hello|hi|hey|thank you|thanks|goodbye|bye)\b",
     r"\b(what does .+ mean|what is meant by)\b",
 ]
 
@@ -50,6 +56,16 @@ def _check_patterns(text: str, patterns: List[str]) -> bool:
 def _rule_based_analysis(query: str) -> QueryAnalysis:
     """Fast rule-based fallback when LLM is unavailable."""
     q = query.strip()
+
+    # Meta-queries about knowledge base or user documents always require retrieval
+    if _check_patterns(q, KB_META_SIGNALS):
+        return QueryAnalysis(
+            complexity="single_hop",
+            freshness_required=False,
+            freshness_reason="Query asks about uploaded documents or knowledge base content.",
+            sub_questions=[],
+            confidence=0.95,
+        )
 
     freshness_required = _check_patterns(q, FRESHNESS_SIGNALS)
     freshness_reason = "Query contains time-sensitive keywords." if freshness_required else "No time-sensitive signals detected."
@@ -79,6 +95,16 @@ async def analyze_query(query: str) -> QueryAnalysis:
 
     Attempts LLM-based structured analysis; falls back to rule-based if unavailable.
     """
+    # Check KB meta signals first to avoid LLM misclassifying questions about user docs as no_retrieval
+    if _check_patterns(query, KB_META_SIGNALS):
+        return QueryAnalysis(
+            complexity="single_hop",
+            freshness_required=False,
+            freshness_reason="Query asks about uploaded documents or knowledge base content.",
+            sub_questions=[],
+            confidence=0.95,
+        )
+
     try:
         return await _llm_analyze_query(query)
     except Exception as exc:
@@ -119,8 +145,9 @@ Respond ONLY with valid JSON matching this schema:
 }}"""
 
     import json
+    from app.utils.llm_client import get_content_text
     response = await llm.ainvoke(prompt)
-    text = response.content if hasattr(response, "content") else str(response)
+    text = get_content_text(response)
 
     # Extract JSON from response
     match = re.search(r"\{.*\}", text, re.DOTALL)

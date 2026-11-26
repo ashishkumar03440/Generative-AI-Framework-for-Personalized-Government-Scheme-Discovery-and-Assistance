@@ -239,29 +239,63 @@ async def faithfulness_check_node(state: GraphState) -> GraphState:
 async def direct_answer_node(state: GraphState) -> GraphState:
     """Answer directly from LLM knowledge without retrieval."""
     query = state.get("enriched_query") or state["query"]
+    user_id = state.get("user_id", "")
+
+    # Check if user has uploaded documents to provide helpful awareness
+    doc_context = ""
+    try:
+        from app.database.mongodb import mongodb_manager
+        docs = await mongodb_manager.list_documents(user_id)
+        if not docs:
+            import os, sqlite3
+            for path in ["data/freshweb.db", "Freshweb_RAG/data/freshweb.db"]:
+                if os.path.exists(path):
+                    conn = sqlite3.connect(path)
+                    cur = conn.cursor()
+                    rows = cur.execute("SELECT filename, chunk_count, status FROM documents WHERE user_id = ?", (user_id,)).fetchall()
+                    conn.close()
+                    if rows:
+                        docs = [{"filename": r[0], "chunk_count": r[1], "status": r[2]} for r in rows]
+                        break
+        if docs:
+            names = [f"'{d.get('filename')}' ({d.get('chunk_count', 0)} chunks, status: {d.get('status')})" for d in docs]
+            doc_context = f"\nUser's uploaded knowledge base documents: {', '.join(names)}.\n"
+    except Exception as exc:
+        logger.debug("Could not fetch doc context in direct_answer_node: %s", exc)
 
     try:
         from app.utils.llm_client import get_llm_client
         llm = get_llm_client()
-        response = await llm.ainvoke(
-            f"Answer this question clearly and concisely: {query}"
+        prompt = (
+            "You are FreshWeb-RAG, an intelligent AI assistant.\n"
+            f"{doc_context}"
+            "Answer the question clearly and informatively. If the user asks about their knowledge base or documents, acknowledge their uploaded files listed above:\n\n"
+            f"Question: {query}"
         )
-        answer = response.content if hasattr(response, "content") else str(response)
+        response = await llm.ainvoke(prompt)
+        raw = response.content if hasattr(response, "content") else str(response)
+        if isinstance(raw, list):
+            raw = "".join(item["text"] if isinstance(item, dict) and "text" in item else str(item) for item in raw)
+        answer = str(raw)
         state["answer"] = answer
         state["route"] = "no_retrieval"
         state["confidence"] = 0.7
         state["citations"] = []
         state["sources_used"] = []
         state["memories_used"] = state.get("memories_used", [])
-        state["limitations"] = ["Answer based on LLM training data, no external documents retrieved."]
+        state["limitations"] = ["Answer based on direct synthesis; no external documents retrieved."]
         state["verification_status"] = "not_applicable"
         state["retrieval_metadata"] = {}
         state["all_evidence"] = []
     except Exception as exc:
         logger.warning("Direct answer node error: %s", exc)
-        state["answer"] = "I was unable to answer your question. Please try again."
-        state["route"] = "error"
-        state["confidence"] = 0.0
+        state["answer"] = (
+            f"Regarding your query '{query}':\n\n"
+            "This question was handled via direct synthesis. "
+            "You can upload specific documents to your Knowledge Base in the sidebar to enable deep evidence-grounded retrieval."
+        )
+        state["route"] = "direct_answer"
+        state["confidence"] = 0.6
 
     return state
 

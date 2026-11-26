@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     llm_provider: str = Field(default="gemini", validation_alias="LLM_PROVIDER")
     gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
-    llm_model: str = Field(default="gemini-1.5-flash", validation_alias="LLM_MODEL")
+    llm_model: str = Field(default="gemini-3.5-flash-lite", validation_alias="LLM_MODEL")
 
     # ── Embedding ─────────────────────────────────────────────────────────────
     embedding_provider: str = Field(default="google", validation_alias="EMBEDDING_PROVIDER")
@@ -35,13 +35,13 @@ class Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────────────────────────
     database_type: str = Field(default="mongodb", validation_alias="DATABASE_TYPE")
     mongodb_uri: str = Field(
-        default="mongodb://localhost:27017", validation_alias="MONGODB_URI"
+        default="mongodb://127.0.0.1:27017", validation_alias="MONGODB_URI"
     )
     mongodb_db_name: str = Field(
         default="freshweb_rag", validation_alias="MONGODB_DB_NAME"
     )
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/freshweb",
+        default="sqlite+aiosqlite:///data/freshweb.db",
         validation_alias="DATABASE_URL",
     )
 
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="*", validation_alias="CORS_ORIGINS")
 
     model_config = {
-        "env_file": ".env",
+        "env_file": (".env", "Freshweb_RAG/.env"),
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }

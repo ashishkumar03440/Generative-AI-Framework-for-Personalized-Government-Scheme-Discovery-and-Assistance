@@ -136,8 +136,9 @@ Respond ONLY with JSON:
   "requires_clarification": true | false
 }}"""
 
+    from app.utils.llm_client import get_content_text
     response = await llm.ainvoke(prompt)
-    text = response.content if hasattr(response, "content") else str(response)
+    text = get_content_text(response)
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         raise ValueError("No JSON in LLM response")
